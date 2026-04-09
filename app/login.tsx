@@ -1,5 +1,6 @@
 import { loginUser } from "@/constants/api";
 import { Ionicons } from "@expo/vector-icons";
+import * as Facebook from "expo-auth-session/providers/facebook";
 import * as Google from "expo-auth-session/providers/google";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
@@ -33,7 +34,11 @@ export default function LoginScreen() {
       "862469355668-j6if8pmt2cqv0neutso4460cg63vnak6.apps.googleusercontent.com",
     redirectUri,
   });
-  console.log(redirectUri);
+
+  const [fbRequest, fbResponse, fbPromptAsync] = Facebook.useAuthRequest({
+    clientId: "1923047308315903",
+    redirectUri: "https://auth.expo.io/@sksatyam/SowLab-Assignment",
+  });
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -64,6 +69,8 @@ export default function LoginScreen() {
     try {
       if (type === "google") {
         await promptAsync();
+      } else if (type === "facebook") {
+        await fbPromptAsync();
       } else {
         Alert.alert("Info", `${type} login not implemented yet`);
       }
@@ -110,6 +117,17 @@ export default function LoginScreen() {
       }
     }
   }, [response]);
+
+  useEffect(() => {
+    if (fbResponse?.type === "success") {
+      const accessToken = fbResponse.authentication?.accessToken;
+      console.log("Facebook Access Token:", accessToken);
+
+      if (accessToken) {
+        handleBackendLogin(accessToken);
+      }
+    }
+  }, [fbResponse]);
 
   const handleForgotPassword = () => {
     router.push("/forgot-password");
