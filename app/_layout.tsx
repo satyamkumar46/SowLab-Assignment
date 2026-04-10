@@ -7,6 +7,7 @@ import 'react-native-reanimated';
 import SplashScreen from '@/components/SplashScreen';
 import { SignupProvider } from '@/constants/SignupContext';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import React from 'react';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();

@@ -1,10 +1,9 @@
-import { loginUser } from "@/constants/api";
+import { loginWithEmail, loginWithGoogle } from "@/constants/api";
 import { Ionicons } from "@expo/vector-icons";
+import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import * as Facebook from "expo-auth-session/providers/facebook";
-import * as Google from "expo-auth-session/providers/google";
 import { useRouter } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -18,8 +17,6 @@ import {
     View,
 } from "react-native";
 
-WebBrowser.maybeCompleteAuthSession();
-
 export default function LoginScreen() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -27,12 +24,10 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const redirectUri = "https://auth.expo.io/@sksatyam/SowLab-Assignment";
-
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId:
+  GoogleSignin.configure({
+    webClientId:
       "862469355668-j6if8pmt2cqv0neutso4460cg63vnak6.apps.googleusercontent.com",
-    redirectUri,
+    scopes: ["profile", "email"],
   });
 
   const [fbRequest, fbResponse, fbPromptAsync] = Facebook.useAuthRequest({
@@ -47,9 +42,11 @@ export default function LoginScreen() {
     }
     setLoading(true);
     try {
-      const response = await loginUser({ email, password });
+      const response = await loginWithEmail({ email, password });
+
       if (response.success) {
         Alert.alert("Success", response.message || "Login successful!");
+        router.push("/registration-complete");
       } else {
         Alert.alert(
           "Error",
@@ -64,70 +61,55 @@ export default function LoginScreen() {
   };
 
   const handleSocialLogin = async (type: "google" | "apple" | "facebook") => {
-    setLoading(true);
+    setEmail("");
+    setPassword("");
+
+    if (type !== "google") {
+      return;
+    }
 
     try {
-      if (type === "google") {
-        await promptAsync();
-      } else if (type === "facebook") {
-        await fbPromptAsync();
-      } else {
-        Alert.alert("Info", `${type} login not implemented yet`);
+      setLoading(true);
+      console.log("STEP 1: Starting Google login");
+
+      await GoogleSignin.hasPlayServices();
+
+      console.log("STEP 2: Play services OK");
+
+      const userInfo = await GoogleSignin.signIn();
+
+      console.log("User Info:", userInfo);
+
+      const idToken = userInfo.data?.idToken;
+      console.log("Google ID Token:", idToken);
+
+      Alert.alert("TOKEN", idToken || "No Token");
+
+      if (!idToken) {
+        Alert.alert("Error", "Google token not found");
+        return;
+      }
+
+      const response = await loginWithGoogle({
+        type: "google",
+        socialId: idToken,
+        email: "",
+        password: "",
+      });
+
+      console.log("STEP 6: API Response", response);
+
+      if (response.success) {
+        Alert.alert("Success", response.message || "Login successful!");
+        router.push("/registration-complete");
       }
     } catch (error) {
-      console.error(error);
-      Alert.alert("Error", "Something went wrong. Please try again.");
+      console.log(error);
+      Alert.alert("Error", "Google login failed");
     } finally {
       setLoading(false);
     }
   };
-
-  const handleBackendLogin = async (accessToken: string) => {
-    try {
-      const response = await loginUser({
-        email: "",
-        password: "",
-        socialId: accessToken,
-        type: "google",
-      });
-
-      if (response.success) {
-        Alert.alert("Success", response.message || "Login successful!");
-      } else {
-        Alert.alert(
-          "Info",
-          response.message ||
-            "Google login not available. Please sign up first.",
-        );
-      }
-    } catch (error) {
-      Alert.alert("Error", "Something went wrong");
-    }
-  };
-
-  useEffect(() => {
-    if (response?.type === "success") {
-      const { authentication } = response;
-
-      const accessToken = authentication?.accessToken;
-      console.log("Google Access Token:", accessToken);
-
-      if (accessToken) {
-        handleBackendLogin(accessToken);
-      }
-    }
-  }, [response]);
-
-  useEffect(() => {
-    if (fbResponse?.type === "success") {
-      const accessToken = fbResponse.authentication?.accessToken;
-      console.log("Facebook Access Token:", accessToken);
-
-      if (accessToken) {
-        handleBackendLogin(accessToken);
-      }
-    }
-  }, [fbResponse]);
 
   const handleForgotPassword = () => {
     router.push("/forgot-password");

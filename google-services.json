@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "601689411218",
+    "project_id": "sowloab-app",
+    "storage_bucket": "sowloab-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:601689411218:android:61214e43289c6e34eb604b",
+        "android_client_info": {
+          "package_name": "com.sksatyam.SowLabAssignment"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "601689411218-8g00ftjujgs7gogqhs7j6q94k5puaoh9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCH7dEfS_DAAEq7H532TzC6UqyRuV_Cgqk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "601689411218-8g00ftjujgs7gogqhs7j6q94k5puaoh9.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
