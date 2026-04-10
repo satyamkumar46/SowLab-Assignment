@@ -22,7 +22,11 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  // Computed flag to disable inputs/buttons while any login flow is active
+  const anyLoading = emailLoading || googleLoading;
 
   GoogleSignin.configure({
     webClientId:
@@ -40,7 +44,7 @@ export default function LoginScreen() {
       Alert.alert("Error", "Please fill in all fields");
       return;
     }
-    setLoading(true);
+    setEmailLoading(true);
     try {
       const response = await loginWithEmail({ email, password });
 
@@ -56,20 +60,17 @@ export default function LoginScreen() {
     } catch (error) {
       Alert.alert("Error", "Something went wrong. Please try again.");
     } finally {
-      setLoading(false);
+      setEmailLoading(false);
     }
   };
 
   const handleSocialLogin = async (type: "google" | "apple" | "facebook") => {
-    setEmail("");
-    setPassword("");
-
     if (type !== "google") {
       return;
     }
 
     try {
-      setLoading(true);
+      setGoogleLoading(true);
       console.log("STEP 1: Starting Google login");
 
       await GoogleSignin.hasPlayServices();
@@ -80,34 +81,45 @@ export default function LoginScreen() {
 
       console.log("User Info:", userInfo);
 
-      const idToken = userInfo.data?.idToken;
-      console.log("Google ID Token:", idToken);
+      const googleUserId = userInfo.data?.user?.id;
+      const googleEmail = userInfo.data?.user?.email || "";
+      console.log("Google User ID:", googleUserId);
+      console.log("Google Email:", googleEmail);
 
-      Alert.alert("TOKEN", idToken || "No Token");
-
-      if (!idToken) {
-        Alert.alert("Error", "Google token not found");
+      if (!googleUserId) {
+        Alert.alert("Error", "Google user ID not found");
         return;
       }
 
       const response = await loginWithGoogle({
         type: "google",
-        socialId: idToken,
-        email: "",
+        socialId: googleUserId,
+        email: googleEmail,
         password: "",
       });
 
       console.log("STEP 6: API Response", response);
 
       if (response.success) {
-        Alert.alert("Success", response.message || "Login successful!");
-        router.push("/registration-complete");
+        Alert.alert("Success", response.message || "Login successful!", [
+          { text: "OK", onPress: () => router.push("/registration-complete") },
+        ]);
+      } else {
+        Alert.alert(
+          "Error",
+          response.message || "Google login failed. Please try again.",
+        );
       }
-    } catch (error) {
-      console.log(error);
-      Alert.alert("Error", "Google login failed");
+    } catch (error: any) {
+      console.log("Google login error:", error);
+      // Don't show error if user cancelled the Google sign-in
+      if (error?.code === "SIGN_IN_CANCELLED" || error?.code === "12501") {
+        console.log("User cancelled Google sign-in");
+        return;
+      }
+      Alert.alert("Error", "Google login failed. Please try again.");
     } finally {
-      setLoading(false);
+      setGoogleLoading(false);
     }
   };
 
@@ -154,7 +166,7 @@ export default function LoginScreen() {
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
-              editable={!loading}
+              editable={!anyLoading}
             />
           </View>
 
@@ -173,7 +185,7 @@ export default function LoginScreen() {
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
-              editable={!loading}
+              editable={!anyLoading}
             />
             <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
               <Ionicons
@@ -186,12 +198,12 @@ export default function LoginScreen() {
 
           {/* Login Button */}
           <TouchableOpacity
-            style={[styles.loginButton, loading && styles.buttonDisabled]}
+            style={[styles.loginButton, emailLoading && styles.buttonDisabled]}
             onPress={handleLogin}
             activeOpacity={0.8}
-            disabled={loading}
+            disabled={anyLoading}
           >
-            {loading ? (
+            {emailLoading ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
               <Text style={styles.loginButtonText}>Login</Text>
@@ -216,23 +228,27 @@ export default function LoginScreen() {
           {/* Social Login */}
           <View style={styles.socialContainer}>
             <TouchableOpacity
-              style={styles.socialButton}
+              style={[styles.socialButton, googleLoading && styles.buttonDisabled]}
               onPress={() => handleSocialLogin("google")}
-              disabled={loading}
+              disabled={anyLoading}
             >
-              <Ionicons name="logo-google" size={22} color="#DB4437" />
+              {googleLoading ? (
+                <ActivityIndicator color="#DB4437" size="small" />
+              ) : (
+                <Ionicons name="logo-google" size={22} color="#DB4437" />
+              )}
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.socialButton}
               onPress={() => handleSocialLogin("apple")}
-              disabled={loading}
+              disabled={anyLoading}
             >
               <Ionicons name="logo-apple" size={22} color="#000" />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.socialButton}
               onPress={() => handleSocialLogin("facebook")}
-              disabled={loading}
+              disabled={anyLoading}
             >
               <Ionicons name="logo-facebook" size={22} color="#4267B2" />
             </TouchableOpacity>

@@ -1,6 +1,7 @@
 import { useSignupContext } from '@/constants/SignupContext';
 import { registerUser } from '@/constants/api';
 import { Ionicons } from '@expo/vector-icons';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -46,7 +47,16 @@ export default function SignupScreen() {
     const [phone, setPhone] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [googleLoading, setGoogleLoading] = useState(false);
     const [showCountryPicker, setShowCountryPicker] = useState(false);
+
+    const anyLoading = loading || googleLoading;
+
+    GoogleSignin.configure({
+        webClientId:
+            '862469355668-j6if8pmt2cqv0neutso4460cg63vnak6.apps.googleusercontent.com',
+        scopes: ['profile', 'email'],
+    });
 
     const handleSignUp = () => {
         if (!fullName || !email || !password || !phone) {
@@ -65,29 +75,53 @@ export default function SignupScreen() {
     };
 
     const handleSocialSignup = async (type: 'google' | 'apple' | 'facebook') => {
-        setLoading(true);
+        if (type !== 'google') {
+            return;
+        }
+
         try {
-            const socialId = `${type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            const socialEmail = `${type}_user_${Date.now()}@${type}.com`;
+            setGoogleLoading(true);
+
+            await GoogleSignin.hasPlayServices();
+            const userInfo = await GoogleSignin.signIn();
+
+            const googleUserId = userInfo.data?.user?.id;
+            const googleEmail = userInfo.data?.user?.email || '';
+            const googleName = userInfo.data?.user?.name || 'Google User';
+
+            console.log('Google Sign-Up - Email:', googleEmail, 'Name:', googleName, 'ID:', googleUserId);
+
+            if (!googleUserId) {
+                Alert.alert('Error', 'Google user ID not found');
+                return;
+            }
+
             const response = await registerUser({
-                full_name: `${type.charAt(0).toUpperCase() + type.slice(1)} User`,
-                email: socialEmail,
-                password: 'Social@123',
+                full_name: googleName,
+                email: googleEmail,
+                password: '',
                 phone: '',
-                socialId,
-                type,
+                socialId: googleUserId,
+                type: 'google',
             });
+
             if (response.success) {
                 Alert.alert('Success', response.message || 'Account created successfully!', [
-                    { text: 'OK', onPress: () => router.replace('/login') },
+                    { text: 'OK', onPress: () => router.replace('/registration-complete') },
                 ]);
             } else {
-                Alert.alert('Info', response.message || `${type.charAt(0).toUpperCase() + type.slice(1)} sign up is not available right now.`);
+                Alert.alert('Error', response.message || 'Google sign up failed. Please try again.');
             }
-        } catch (error) {
+        } catch (error: any) {
+            console.log('Google signup error:', error);
+            // Don't show error if user cancelled the Google sign-in
+            if (error?.code === 'SIGN_IN_CANCELLED' || error?.code === '12501') {
+                console.log('User cancelled Google sign-in');
+                return;
+            }
             Alert.alert('Error', 'Something went wrong. Please try again.');
         } finally {
-            setLoading(false);
+            setGoogleLoading(false);
         }
     };
 
@@ -112,11 +146,11 @@ export default function SignupScreen() {
                     {/* Social Login */}
                     <View style={styles.socialContainer}>
                         <TouchableOpacity
-                            style={styles.socialButton}
+                            style={[styles.socialButton, googleLoading && styles.buttonDisabled]}
                             onPress={() => handleSocialSignup('google')}
-                            disabled={loading}
+                            disabled={anyLoading}
                         >
-                            {loading ? (
+                            {googleLoading ? (
                                 <ActivityIndicator size="small" color="#DB4437" />
                             ) : (
                                 <Ionicons name="logo-google" size={22} color="#DB4437" />
@@ -125,14 +159,14 @@ export default function SignupScreen() {
                         <TouchableOpacity
                             style={styles.socialButton}
                             onPress={() => handleSocialSignup('apple')}
-                            disabled={loading}
+                            disabled={anyLoading}
                         >
                             <Ionicons name="logo-apple" size={22} color="#000" />
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={styles.socialButton}
                             onPress={() => handleSocialSignup('facebook')}
-                            disabled={loading}
+                            disabled={anyLoading}
                         >
                             <Ionicons name="logo-facebook" size={22} color="#4267B2" />
                         </TouchableOpacity>

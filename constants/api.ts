@@ -100,7 +100,7 @@ export async function loginWithGoogle(params: any): Promise<ApiResponse> {
   return apiRequest("/login", {
     email: params.email || "",
     password: params.password || "",
-    socialId: params.socialId || "",
+    social_id: params.socialId || "",
     type: "google",
     role: "farmer",
   });
