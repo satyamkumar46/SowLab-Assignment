@@ -106,6 +106,16 @@ export async function loginWithGoogle(params: any): Promise<ApiResponse> {
   });
 }
 
+export async function loginWithFacebook(params: any): Promise<ApiResponse> {
+  return apiRequest("/login", {
+    email: params.email || "",
+    password: params.password || "",
+    social_id: params.socialId || "",
+    type: "facebook",
+    role: "farmer",
+  });
+}
+
 export async function registerUser(
   params: RegisterParams,
 ): Promise<ApiResponse> {

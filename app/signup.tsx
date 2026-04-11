@@ -2,8 +2,10 @@ import { useSignupContext } from '@/constants/SignupContext';
 import { registerUser } from '@/constants/api';
 import { Ionicons } from '@expo/vector-icons';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import * as AuthSession from 'expo-auth-session';
+import * as WebBrowser from 'expo-web-browser';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -18,6 +20,11 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+
+// Complete any pending auth sessions (needed for web browser redirect)
+WebBrowser.maybeCompleteAuthSession();
+
+const FB_APP_ID = '1923047308315903';
 
 const COUNTRY_CODES = [
     { code: '+91', country: '🇮🇳 India' },
@@ -48,9 +55,10 @@ export default function SignupScreen() {
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [googleLoading, setGoogleLoading] = useState(false);
+    const [facebookLoading, setFacebookLoading] = useState(false);
     const [showCountryPicker, setShowCountryPicker] = useState(false);
 
-    const anyLoading = loading || googleLoading;
+    const anyLoading = loading || googleLoading || facebookLoading;
 
     GoogleSignin.configure({
         webClientId:
@@ -74,11 +82,7 @@ export default function SignupScreen() {
         router.push('/farm-info');
     };
 
-    const handleSocialSignup = async (type: 'google' | 'apple' | 'facebook') => {
-        if (type !== 'google') {
-            return;
-        }
-
+    const handleGoogleSignup = async () => {
         try {
             setGoogleLoading(true);
 
@@ -88,8 +92,6 @@ export default function SignupScreen() {
             const googleUserId = userInfo.data?.user?.id;
             const googleEmail = userInfo.data?.user?.email || '';
             const googleName = userInfo.data?.user?.name || 'Google User';
-
-            console.log('Google Sign-Up - Email:', googleEmail, 'Name:', googleName, 'ID:', googleUserId);
 
             if (!googleUserId) {
                 Alert.alert('Error', 'Google user ID not found');
@@ -114,7 +116,6 @@ export default function SignupScreen() {
             }
         } catch (error: any) {
             console.log('Google signup error:', error);
-            // Don't show error if user cancelled the Google sign-in
             if (error?.code === 'SIGN_IN_CANCELLED' || error?.code === '12501') {
                 console.log('User cancelled Google sign-in');
                 return;
@@ -122,6 +123,114 @@ export default function SignupScreen() {
             Alert.alert('Error', 'Something went wrong. Please try again.');
         } finally {
             setGoogleLoading(false);
+        }
+    };
+
+    // Facebook OAuth using expo-auth-session
+    const discovery = {
+        authorizationEndpoint: 'https://www.facebook.com/v19.0/dialog/oauth',
+        tokenEndpoint: 'https://graph.facebook.com/v19.0/oauth/access_token',
+    };
+
+    const redirectUri = AuthSession.makeRedirectUri({
+        scheme: 'sowlabassignment',
+    });
+
+    const [fbRequest, fbResponse, fbPromptAsync] = AuthSession.useAuthRequest(
+        {
+            clientId: FB_APP_ID,
+            scopes: ['public_profile', 'email'],
+            redirectUri,
+            responseType: AuthSession.ResponseType.Token,
+        },
+        discovery,
+    );
+
+    useEffect(() => {
+        if (fbResponse?.type === 'success') {
+            const { access_token } = fbResponse.params;
+            handleFacebookToken(access_token);
+        } else if (fbResponse?.type === 'error') {
+            console.log('Facebook auth error:', fbResponse.error);
+            Alert.alert('Error', 'Facebook authentication failed. Please try again.');
+            setFacebookLoading(false);
+        } else if (fbResponse?.type === 'dismiss') {
+            console.log('User dismissed Facebook login');
+            setFacebookLoading(false);
+        }
+    }, [fbResponse]);
+
+    const handleFacebookToken = async (accessToken: string) => {
+        try {
+            // Fetch user info from Facebook Graph API
+            const fbUserResponse = await fetch(
+                `https://graph.facebook.com/me?access_token=${accessToken}&fields=id,name,email`,
+            );
+            const fbUser = await fbUserResponse.json();
+
+            console.log('Facebook User:', fbUser);
+
+            // Handle Graph API errors
+            if (fbUser.error) {
+                console.log('Facebook Graph API error:', fbUser.error);
+                Alert.alert('Error', fbUser.error.message || 'Failed to fetch Facebook profile.');
+                return;
+            }
+
+            const fbUserId = fbUser.id;
+            const fbEmail = fbUser.email || '';
+            const fbName = fbUser.name || 'Facebook User';
+
+            if (!fbUserId) {
+                Alert.alert('Error', 'Facebook user ID not found');
+                return;
+            }
+
+            const response = await registerUser({
+                full_name: fbName,
+                email: fbEmail,
+                password: '',
+                phone: '',
+                socialId: fbUserId,
+                type: 'facebook',
+            });
+
+            console.log('Facebook Signup API Response:', response);
+
+            if (response.success) {
+                Alert.alert('Success', response.message || 'Account created successfully!', [
+                    { text: 'OK', onPress: () => router.replace('/registration-complete') },
+                ]);
+            } else {
+                Alert.alert('Error', response.message || 'Facebook sign up failed. Please try again.');
+            }
+        } catch (error: any) {
+            console.log('Facebook signup error:', error);
+            const errorMessage = error?.message || error?.toString() || 'Unknown error';
+            Alert.alert('Facebook Signup Error', `Failed to sign up with Facebook: ${errorMessage}`);
+        } finally {
+            setFacebookLoading(false);
+        }
+    };
+
+    const handleFacebookSignup = async () => {
+        try {
+            setFacebookLoading(true);
+            await fbPromptAsync();
+        } catch (error: any) {
+            console.log('Facebook signup prompt error:', error);
+            Alert.alert('Error', 'Failed to open Facebook login. Please try again.');
+            setFacebookLoading(false);
+        }
+    };
+
+    const handleSocialSignup = async (type: 'google' | 'apple' | 'facebook') => {
+        if (type === 'google') {
+            handleGoogleSignup();
+        } else if (type === 'facebook') {
+            handleFacebookSignup();
+        } else {
+            Alert.alert('Info', 'Apple sign up is not available yet.');
         }
     };
 
@@ -164,11 +273,15 @@ export default function SignupScreen() {
                             <Ionicons name="logo-apple" size={22} color="#000" />
                         </TouchableOpacity>
                         <TouchableOpacity
-                            style={styles.socialButton}
+                            style={[styles.socialButton, facebookLoading && styles.buttonDisabled]}
                             onPress={() => handleSocialSignup('facebook')}
                             disabled={anyLoading}
                         >
-                            <Ionicons name="logo-facebook" size={22} color="#4267B2" />
+                            {facebookLoading ? (
+                                <ActivityIndicator size="small" color="#4267B2" />
+                            ) : (
+                                <Ionicons name="logo-facebook" size={22} color="#4267B2" />
+                            )}
                         </TouchableOpacity>
                     </View>
 
